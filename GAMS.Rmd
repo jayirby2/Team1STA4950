@@ -1,0 +1,875 @@
+---
+title: "GAMModeling"
+author: "Jay Irby"
+date: "2025-10-23"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Libraries
+library(tidyverse)
+library(mgcv)
+```
+
+```{r}
+# Import the data subsets
+RHP_RHH_df <- read_csv("RHP_RHH_bip.csv")
+RHP_LHH_df <- read_csv("RHP_LHH_bip.csv")
+LHP_RHH_df <- read_csv("LHP_RHH_bip.csv")
+LHP_LHH_df <- read_csv("LHP_LHH_bip.csv")
+```
+
+```{r, cache=TRUE}
+GAM_RR <- gam(GIDP_SweetSpot ~
+           s(spinrate) +
+           s(relspeed) +
+           s(inducedvertbreak) +
+           s(horzbreak) +
+           ti(platelocside, platelocheight) +
+           s(platelocside) + s(platelocheight) +
+           ti(initposx, initposz) +
+           s(initposx) + s(initposz), 
+         data=RHP_RHH_df,
+         family = binomial,
+         method = "REML")
+
+summary(GAM_RR)
+```
+
+```{r, cache=TRUE}
+GAM_RL <- gam(GIDP_SweetSpot ~
+           s(spinrate) +
+           s(relspeed) +
+           s(inducedvertbreak) +
+           s(horzbreak) +
+           ti(platelocside, platelocheight) +
+           s(platelocside) + s(platelocheight) +
+           ti(initposx, initposz) +
+           s(initposx) + s(initposz), 
+         data=RHP_LHH_df,
+         family = binomial,
+         method = "REML")
+
+summary(GAM_RL)
+```
+
+```{r, cache=TRUE}
+GAM_LR <- gam(GIDP_SweetSpot ~
+           s(spinrate) +
+           s(relspeed) +
+           s(inducedvertbreak) +
+           s(horzbreak) +
+           ti(platelocside, platelocheight) +
+           s(platelocside) + s(platelocheight) +
+           ti(initposx, initposz) +
+           s(initposx) + s(initposz), 
+         data=LHP_RHH_df,
+         family = binomial,
+         method = "REML")
+
+summary(GAM_LR)
+```
+
+```{r, cache=TRUE}
+GAM_LL <- gam(GIDP_SweetSpot ~
+           s(spinrate) +
+           s(relspeed) +
+           s(inducedvertbreak) +
+           s(horzbreak) +
+           ti(platelocside, platelocheight) +
+           s(platelocside) + s(platelocheight) +
+           ti(initposx, initposz) +
+           s(initposx) + s(initposz), 
+         data=LHP_LHH_df,
+         family = binomial,
+         method = "REML")
+
+summary(GAM_LL)
+```
+
+```{r}
+GAM_RR$sp
+GAM_RL$sp
+GAM_LR$sp
+GAM_LL$sp
+```
+
+```{r}
+library(ggplot2)
+library(RColorBrewer)
+library(rlang)
+```
+
+# Visualizations
+
+
+```{r, cache=TRUE}
+library(gratia)
+library(ggplot2)
+library(RColorBrewer)
+library(rlang)
+draw(GAM_LL, select = "s(relspeed)", residuals = TRUE)
+draw(GAM_LL, select = "s(spinrate)", residuals = TRUE)
+draw(GAM_LL, select = "s(inducedvertbreak)", residuals = TRUE)
+draw(GAM_LL, select = "s(horzbreak)", residuals = TRUE)
+```
+
+## Pitch Type Analysis 
+
+### Each pitch is assigned to a cluster (0-4) based on physical pitch traits
+
+```{r}
+RHP_RHH_by_cluster <- read_csv('RHP_RHH_GIDP_ByPitchCluster.csv')
+RHP_LHH_by_cluster <- read_csv('RHP_LHH_GIDP_ByPitchCluster.csv')
+LHP_RHH_by_cluster <- read_csv('LHP_RHH_GIDP_ByPitchCluster.csv')
+LHP_LHH_by_cluster <- read_csv('LHP_LHH_GIDP_ByPitchCluster.csv')
+```
+
+# Inference by pitch type + location
+
+
+# Doing Zone-based visualizations
+
+```{r, cache=TRUE}
+plot_zone_per_pitchtype_RHP_rev <- function(model, data, 
+                                            pitch_cluster,
+                                            pitch_type = NULL,
+                                            title = NULL) {
+  # Strike zone bounds
+  k_zone_height_max <- 3.67
+  k_zone_height_min <- 1.52
+  sides <- c(-0.83, 0.83)
+  
+  # Define zone width/height and breakpoints
+  zone_width  <- diff(sides)
+  zone_height <- k_zone_height_max - k_zone_height_min
+  x_breaks <- seq(sides[1] - zone_width/3,
+                  sides[2] + zone_width/3,
+                  length.out = 6)
+  y_breaks <- seq(k_zone_height_min - zone_height/3,
+                  k_zone_height_max + zone_height/3,
+                  length.out = 6)
+  
+  # Cluster means for fixed covariates
+  cluster_summary_rr <- data %>%
+    filter(Cluster == pitch_cluster) %>%
+    summarise(across(c(spinrate, relspeed, inducedvertbreak,
+                       horzbreak, initposx, initposz), ~mean(.x, na.rm=TRUE)))
+  
+  # Prediction grid
+  grid <- expand.grid(
+    platelocside   = seq(sides[1] - 0.5, sides[2] + 0.5, length.out = 300),
+    platelocheight = seq(k_zone_height_min - 0.5, k_zone_height_max + 0.5, length.out = 300)
+  )
+  for (col in names(cluster_summary_rr)) grid[[col]] <- cluster_summary_rr[[col]]
+  grid$Cluster <- pitch_cluster
+  
+  # Predict probabilities
+  grid$pred_prob <- predict(model, newdata = grid, type = "response")
+  
+  # Average within bins and compute boundaries
+  zone_summary <- grid %>%
+    mutate(
+      x_bin = cut(platelocside, breaks = x_breaks, include.lowest = TRUE),
+      y_bin = cut(platelocheight, breaks = y_breaks, include.lowest = TRUE)
+    ) %>%
+    group_by(x_bin, y_bin) %>%
+    summarise(
+      mean_prob = mean(pred_prob, na.rm = TRUE),
+      x_min = min(platelocside),
+      x_max = max(platelocside),
+      y_min = min(platelocheight),
+      y_max = max(platelocheight),
+      .groups = "drop"
+    ) %>%
+    mutate(
+      x_center = (x_min + x_max)/2,
+      y_center = (y_min + y_max)/2
+    )
+  
+  p <- ggplot(zone_summary) +
+    geom_rect(
+      aes(xmin = x_min, xmax = x_max,
+          ymin = y_min, ymax = y_max,
+          fill = mean_prob),
+      color = "white", linewidth = 0.8
+    ) +
+    geom_text(aes(x = x_center, y = y_center,
+                  label = sprintf("%.2f", mean_prob)),
+              color = "white", size = 3.8) +
+    # True strike-zone outline
+    geom_rect(aes(xmin = sides[1], xmax = sides[2],
+                  ymin = k_zone_height_min, ymax = k_zone_height_max),
+              color = "black", fill = NA, linewidth = 1.3) +
+    scale_fill_viridis_c(option = "C", direction = -1, limits = c(0, 0.5)) +
+    coord_equal() +
+    labs(
+      title = paste0(title, " — Pitch Profile: ", pitch_type,
+                     " (Cluster ", pitch_cluster, ")"),
+      x = "Horizontal Location (ft, Catcher View)",
+      y = "Vertical Location (ft)",
+      fill = "Pred. Prob."
+    ) +
+    theme_minimal(base_size = 14) +
+    theme(
+      panel.grid = element_blank(),
+      plot.title = element_text(size = 13, hjust = 0.5)
+    )
+  
+  return(p)
+}
+
+plot_zone_per_pitchtype_RHP_rev(GAM_RR, RHP_RHH_by_cluster, 0, 
+                           "Slider/Cutter","RHP vs RHH")
+plot_zone_per_pitchtype_RHP_rev(GAM_RR, RHP_RHH_by_cluster, 1, 
+                           "4-Seam Fastball","RHP vs RHH")
+plot_zone_per_pitchtype_RHP_rev(GAM_RR, RHP_RHH_by_cluster, 2, 
+                           "Splitter/Changeup","RHP vs RHH")
+plot_zone_per_pitchtype_RHP_rev(GAM_RR, RHP_RHH_by_cluster, 3, 
+                           "Sinker/2-Seamer","RHP vs RHH")
+plot_zone_per_pitchtype_RHP_rev(GAM_RR, RHP_RHH_by_cluster, 4, 
+                           "Curveball/Vertical Dropper","RHP vs RHH")
+
+plot_zone_per_pitchtype_RHP_rev(GAM_RL, RHP_LHH_by_cluster, 0, 
+                           "Slider/Cutter","RHP vs LHH")
+plot_zone_per_pitchtype_RHP_rev(GAM_RL, RHP_LHH_by_cluster, 1, 
+                           "4-Seam Fastball","RHP vs LHH")
+plot_zone_per_pitchtype_RHP_rev(GAM_RL, RHP_LHH_by_cluster, 2, 
+                           "Splitter/Changeup","RHP vs LHH")
+plot_zone_per_pitchtype_RHP_rev(GAM_RL, RHP_LHH_by_cluster, 3, 
+                           "Sinker/2-Seamer","RHP vs LHH")
+plot_zone_per_pitchtype_RHP_rev(GAM_RL, RHP_LHH_by_cluster, 4, 
+                           "Curveball/Vertical Dropper","RHP vs LHH")
+
+plot_zone_per_pitchtype_RHP_rev(GAM_LR, LHP_RHH_by_cluster, 0, 
+                            "Curveball/Vertical Dropper", "LHP vs RHH")
+plot_zone_per_pitchtype_RHP_rev(GAM_LR, LHP_RHH_by_cluster, 1, 
+                            "4-Seam Fastball", "LHP vs RHH")
+plot_zone_per_pitchtype_RHP_rev(GAM_LR, LHP_RHH_by_cluster, 2, 
+                            "Slider/Cutter", "LHP vs RHH")
+plot_zone_per_pitchtype_RHP_rev(GAM_LR, LHP_RHH_by_cluster, 3, 
+                            "Splitter/Changeup", "LHP vs RHH")
+plot_zone_per_pitchtype_RHP_rev(GAM_LR, LHP_RHH_by_cluster, 4, 
+                            "Sinker/2-Seamer", "LHP vs RHH")
+
+plot_zone_per_pitchtype_RHP_rev(GAM_LL, LHP_LHH_by_cluster, 0, 
+                            "Curveball/Vertical Dropper", "LHP vs LHH")
+plot_zone_per_pitchtype_RHP_rev(GAM_LL, LHP_LHH_by_cluster, 1, 
+                            "4-Seam Fastball", "LHP vs LHH")
+plot_zone_per_pitchtype_RHP_rev(GAM_LL, LHP_LHH_by_cluster, 2, 
+                            "Slider/Cutter", "LHP vs LHH")
+plot_zone_per_pitchtype_RHP_rev(GAM_LL, LHP_LHH_by_cluster, 3, 
+                            "Splitter/Changeup", "LHP vs LHH")
+plot_zone_per_pitchtype_RHP_rev(GAM_LL, LHP_LHH_by_cluster, 4, 
+                            "Sinker/2-Seamer", "LHP vs LHH")
+
+# RR
+RHP_RHH_by_cluster$Prediction <- predict(GAM_RR, 
+                                         newdata=RHP_RHH_by_cluster,
+                                         type="response")
+pitch_types_ranked_RR <- RHP_RHH_by_cluster %>%
+  group_by(Cluster) %>%
+  summarise(
+    mean_pred_prob = mean(Prediction, na.rm=TRUE),
+    se_pred_prob = sd(Prediction, na.rm=TRUE) / sqrt(n()),
+    n = n()
+  )  %>%
+  arrange(desc(mean_pred_prob)) %>%
+  mutate(Rank = row_number())
+pitch_types_ranked_RR
+
+# RL
+RHP_LHH_by_cluster$Prediction <- predict(GAM_RL, 
+                                         newdata=RHP_LHH_by_cluster,
+                                         type="response")
+pitch_types_ranked_RL <- RHP_LHH_by_cluster %>%
+  group_by(Cluster) %>%
+  summarise(
+    mean_pred_prob = mean(Prediction, na.rm=TRUE),
+    se_pred_prob = sd(Prediction, na.rm=TRUE) / sqrt(n()),
+    n = n()
+  )  %>%
+  arrange(desc(mean_pred_prob)) %>%
+  mutate(Rank = row_number())
+pitch_types_ranked_RL
+
+# LR
+LHP_RHH_by_cluster$Prediction <- predict(GAM_LR, 
+                                         newdata=LHP_RHH_by_cluster,
+                                         type="response")
+pitch_types_ranked_LR <- LHP_RHH_by_cluster %>%
+  group_by(Cluster) %>%
+  summarise(
+    mean_pred_prob = mean(Prediction, na.rm=TRUE),
+    se_pred_prob = sd(Prediction, na.rm=TRUE) / sqrt(n()),
+    n = n()
+  )  %>%
+  arrange(desc(mean_pred_prob)) %>%
+  mutate(Rank = row_number())
+pitch_types_ranked_LR
+
+# LL
+LHP_LHH_by_cluster$Prediction <- predict(GAM_LL, 
+                                         newdata=LHP_LHH_by_cluster,
+                                         type="response")
+pitch_types_ranked_LL <- LHP_LHH_by_cluster %>%
+  group_by(Cluster) %>%
+  summarise(
+    mean_pred_prob = mean(Prediction, na.rm=TRUE),
+    se_pred_prob = sd(Prediction, na.rm=TRUE) / sqrt(n()),
+    n = n()
+  )  %>%
+  arrange(desc(mean_pred_prob)) %>%
+  mutate(Rank = row_number())
+
+```
+
+``` {r, cache=TRUE}
+k_zone_height_max <- 3.67
+k_zone_height_min <- 1.52
+sides <- c(-0.83, 0.83)
+zone_width  <- diff(sides)
+zone_height <- k_zone_height_max - k_zone_height_min
+
+x_breaks <- seq(sides[1] - zone_width/3,
+                sides[2] + zone_width/3,
+                length.out = 6)
+y_breaks <- seq(k_zone_height_min - zone_height/3,
+                k_zone_height_max + zone_height/3,
+                length.out = 6)
+
+# Expected value of each pitch over our zone
+grid <- expand.grid(
+  platelocside   = seq(min(x_breaks), max(x_breaks), length.out = 300),
+  platelocheight = seq(min(y_breaks), max(y_breaks), length.out = 300)
+)
+
+cluster_means_LL <- LHP_LHH_by_cluster %>%
+  group_by(Cluster) %>%
+  summarise(across(c(spinrate, relspeed, inducedvertbreak,
+                     horzbreak, initposx, initposz), \(x) mean(x, na.rm = TRUE)),
+            n = n())
+
+# Integrate expected probabilities
+zone_rank_LL <- cluster_means_LL %>%
+  mutate(
+    expected_prob = map_dbl(Cluster, \(clust) {
+      vals <- filter(cluster_means_LL, Cluster == clust)
+      
+      grid_tmp <- grid
+      for (col in names(vals)[names(vals) != c("Cluster", "n")]) {
+        grid_tmp[[col]] <- vals[[col]]
+      }
+      grid_tmp$Cluster <- clust
+      
+      preds <- predict(GAM_LL, newdata = grid_tmp, type = "response")
+      mean(preds, na.rm = TRUE)
+    })
+  ) %>%
+  mutate(
+    relative_to_mean = expected_prob / mean(expected_prob, na.rm = TRUE)
+  ) %>%
+  select(Cluster, n, expected_prob, relative_to_mean) %>%
+  arrange(desc(expected_prob))
+
+zone_rank_LL
+
+cluster_means_LR <- LHP_RHH_by_cluster %>%
+  group_by(Cluster) %>%
+  summarise(across(c(spinrate, relspeed, inducedvertbreak,
+                     horzbreak, initposx, initposz), \(x) mean(x, na.rm = TRUE)),
+            n = n())
+
+# Integrate expected probabilities
+zone_rank_LR <- cluster_means_LR %>%
+  mutate(
+    expected_prob = map_dbl(Cluster, \(clust) {
+      vals <- filter(cluster_means_LR, Cluster == clust)
+      
+      grid_tmp <- grid
+      for (col in names(vals)[names(vals) != c("Cluster", "n")]) {
+        grid_tmp[[col]] <- vals[[col]]
+      }
+      grid_tmp$Cluster <- clust
+      
+      preds <- predict(GAM_LR, newdata = grid_tmp, type = "response")
+      mean(preds, na.rm = TRUE)
+    })
+  ) %>%
+  mutate(
+    relative_to_mean = expected_prob / mean(expected_prob, na.rm = TRUE)
+  ) %>%
+  select(Cluster, n, expected_prob, relative_to_mean) %>%
+  arrange(desc(expected_prob))
+
+zone_rank_LR
+
+cluster_means_RL <- RHP_LHH_by_cluster %>%
+  group_by(Cluster) %>%
+  summarise(across(c(spinrate, relspeed, inducedvertbreak,
+                     horzbreak, initposx, initposz), \(x) mean(x, na.rm = TRUE)),
+            n = n())
+
+# Integrate expected probabilities
+zone_rank_RL <- cluster_means_RL %>%
+  mutate(
+    expected_prob = map_dbl(Cluster, \(clust) {
+      vals <- filter(cluster_means_RL, Cluster == clust)
+      
+      grid_tmp <- grid
+      for (col in names(vals)[names(vals) != c("Cluster", "n")]) {
+        grid_tmp[[col]] <- vals[[col]]
+      }
+      grid_tmp$Cluster <- clust
+      
+      preds <- predict(GAM_RL, newdata = grid_tmp, type = "response")
+      mean(preds, na.rm = TRUE)
+    })
+  ) %>%
+  mutate(
+    relative_to_mean = expected_prob / mean(expected_prob, na.rm = TRUE)
+  ) %>%
+  select(Cluster, n, expected_prob, relative_to_mean) %>%
+  arrange(desc(expected_prob))
+
+zone_rank_RL
+
+cluster_means_RR <- RHP_RHH_by_cluster %>%
+  group_by(Cluster) %>%
+  summarise(across(c(spinrate, relspeed, inducedvertbreak,
+                     horzbreak, initposx, initposz), \(x) mean(x, na.rm = TRUE)),
+            n = n())
+
+# Integrate expected probabilities
+zone_rank_RR <- cluster_means_RR %>%
+  mutate(
+    expected_prob = map_dbl(Cluster, \(clust) {
+      vals <- filter(cluster_means_RR, Cluster == clust)
+      
+      grid_tmp <- grid
+      for (col in names(vals)[names(vals) != c("Cluster", "n")]) {
+        grid_tmp[[col]] <- vals[[col]]
+      }
+      grid_tmp$Cluster <- clust
+      
+      preds <- predict(GAM_RR, newdata = grid_tmp, type = "response")
+      mean(preds, na.rm = TRUE)
+    })
+  ) %>%
+  mutate(
+    relative_to_mean = expected_prob / mean(expected_prob, na.rm = TRUE)
+  ) %>%
+  select(Cluster, n, expected_prob, relative_to_mean) %>%
+  arrange(desc(expected_prob))
+
+zone_rank_RR
+```
+
+## Pitch Ranking Great Table
+
+``` {r, cache=TRUE}
+library(gt)
+pitch_types_left_left <- c("Sinker/2-Seam Fastball",
+                           "Splitter/Changeup",
+                      "Slider/Cutter",
+                      "4-Seam Fastball",
+                      "Curveball/Vertical Dropper")
+
+pitch_types_ranked_LL <- zone_rank_LL %>%
+  mutate(
+    Pitch_Type = pitch_types_left_left,
+    Rank = row_number()
+  )
+
+
+# Create the gt table
+gt_LL <- pitch_types_ranked_LL %>%
+  select(c(-Cluster, -n)) %>%
+  gt() %>%
+  cols_move_to_start(columns = c(Rank, Pitch_Type,
+                                 expected_prob, relative_to_mean)) %>%
+  fmt_number(columns = c(expected_prob, relative_to_mean), decimals = 3) %>%
+  cols_label(
+    Pitch_Type = "Pitch Profile",
+    expected_prob = "Expected Probability",
+    Rank = "Rank",
+    relative_to_mean = "Relative to Average"
+  ) %>%
+  tab_header(
+    title = "Expected Optimal GIDP Contact Probabilities by Pitch Profile",
+    subtitle = "LHP vs. LHH Matchup"
+  ) %>%
+  fmt_missing(everything(), missing_text = "—") %>%
+  data_color(
+    columns = c(Rank),
+    colors = scales::col_numeric(
+      palette = c("#b2182b", "#ef8a62", "#f7f7f7", "#67a9cf", "#2166ac"),
+      domain = range(
+        pitch_types_ranked_LL$Rank
+      )
+    )
+  ) %>%
+  data_color(
+    columns = c(relative_to_mean),
+    colors = scales::col_numeric(
+      palette = rev(c("#b2182b", "#ef8a62", "#f7f7f7", "#67a9cf", "#2166ac")),
+      domain = range(
+        pitch_types_ranked_LL$relative_to_mean
+      )
+    )
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(columns = c(Rank, expected_prob, relative_to_mean))
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(weight = "bold", size = px(18))
+    ),
+    locations = cells_title(groups = "title")
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(weight = "bold", size = px(14))
+    ),
+    locations = cells_title(groups = "subtitle")
+  ) %>%
+  tab_options(
+    table.font.size = 13,
+    data_row.padding = px(5)
+  )
+
+gt_LL
+
+
+pitch_types_left_right <- c("Sinker/2-Seam Fastball",
+                           "Splitter/Changeup",
+                      "Slider/Cutter",
+                      "Curveball/Vertical Dropper",
+                      "4-Seam Fastball")
+
+pitch_types_ranked_LR <- zone_rank_LR %>%
+  mutate(
+    Pitch_Type = pitch_types_left_right,
+    Rank = row_number()
+  )
+
+
+# Create the gt table
+gt_LR <- pitch_types_ranked_LR %>%
+  select(c(-Cluster, -n)) %>%
+  gt() %>%
+  cols_move_to_start(columns = c(Rank, Pitch_Type,
+                                 expected_prob, relative_to_mean)) %>%
+  fmt_number(columns = c(expected_prob, relative_to_mean), decimals = 3) %>%
+  cols_label(
+    Pitch_Type = "Pitch Profile",
+    expected_prob = "Expected Probability",
+    Rank = "Rank",
+    relative_to_mean = "Relative to Average"
+  ) %>%
+  tab_header(
+    title = "Expected Optimal GIDP Contact Probabilities by Pitch Profile",
+    subtitle = "LHP vs. RHH Matchup"
+  ) %>%
+  fmt_missing(everything(), missing_text = "—") %>%
+  data_color(
+    columns = c(Rank),
+    colors = scales::col_numeric(
+      palette = c("#b2182b", "#ef8a62", "#f7f7f7", "#67a9cf", "#2166ac"),
+      domain = range(
+        pitch_types_ranked_LR$Rank
+      )
+    )
+  ) %>%
+  data_color(
+    columns = c(relative_to_mean),
+    colors = scales::col_numeric(
+      palette = rev(c("#b2182b", "#ef8a62", "#f7f7f7", "#67a9cf", "#2166ac")),
+      domain = range(
+        pitch_types_ranked_LR$relative_to_mean
+      )
+    )
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(columns = c(Rank, expected_prob, relative_to_mean))
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(weight = "bold", size = px(18))
+    ),
+    locations = cells_title(groups = "title")
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(weight = "bold", size = px(14))
+    ),
+    locations = cells_title(groups = "subtitle")
+  ) %>%
+  tab_options(
+    table.font.size = 13,
+    data_row.padding = px(5)
+  )
+
+gt_LR
+
+pitch_types_right_left <- c("Sinker/2-Seam Fastball",
+                            "Splitter/Changeup",
+                            "4-Seam Fastball",
+                             "Slider/Cutter",
+                      "Curveball/Vertical Dropper")
+
+pitch_types_ranked_RL <- zone_rank_RL %>%
+  mutate(
+    Pitch_Type = pitch_types_right_left,
+    Rank = row_number()
+  )
+
+
+# Create the gt table
+gt_RL <- pitch_types_ranked_RL %>%
+  select(c(-Cluster, -n)) %>%
+  gt() %>%
+  cols_move_to_start(columns = c(Rank, Pitch_Type,
+                                 expected_prob, relative_to_mean)) %>%
+  fmt_number(columns = c(expected_prob, relative_to_mean), decimals = 3) %>%
+  cols_label(
+    Pitch_Type = "Pitch Profile",
+    expected_prob = "Expected Probability",
+    Rank = "Rank",
+    relative_to_mean = "Relative to Average"
+  ) %>%
+  tab_header(
+    title = "Expected Optimal GIDP Contact Probabilities by Pitch Profile",
+    subtitle = "RHP vs. LHH Matchup"
+  ) %>%
+  fmt_missing(everything(), missing_text = "—") %>%
+  data_color(
+    columns = c(Rank),
+    colors = scales::col_numeric(
+      palette = c("#b2182b", "#ef8a62", "#f7f7f7", "#67a9cf", "#2166ac"),
+      domain = range(
+        pitch_types_ranked_RL$Rank
+      )
+    )
+  ) %>%
+  data_color(
+    columns = c(relative_to_mean),
+    colors = scales::col_numeric(
+      palette = rev(c("#b2182b", "#ef8a62", "#f7f7f7", "#67a9cf", "#2166ac")),
+      domain = range(
+        pitch_types_ranked_RL$relative_to_mean
+      )
+    )
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(columns = c(Rank, expected_prob, relative_to_mean))
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(weight = "bold", size = px(18))
+    ),
+    locations = cells_title(groups = "title")
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(weight = "bold", size = px(14))
+    ),
+    locations = cells_title(groups = "subtitle")
+  ) %>%
+  tab_options(
+    table.font.size = 13,
+    data_row.padding = px(5)
+  )
+
+gt_RL
+
+pitch_types_right_right <- c("Sinker/2-Seam Fastball",
+                             "Splitter/Changeup",
+                             "Slider/Cutter",
+                      "Curveball/Vertical Dropper",
+                      "4-Seam Fastball")
+
+pitch_types_ranked_RR <- zone_rank_RR %>%
+  mutate(
+    Pitch_Type = pitch_types_right_right,
+    Rank = row_number()
+  )
+
+
+# Create the gt table
+gt_RR <- pitch_types_ranked_RR %>%
+  select(c(-Cluster, -n)) %>%
+  gt() %>%
+  cols_move_to_start(columns = c(Rank, Pitch_Type,
+                                 expected_prob, relative_to_mean)) %>%
+  fmt_number(columns = c(expected_prob, relative_to_mean), decimals = 3) %>%
+  cols_label(
+    Pitch_Type = "Pitch Profile",
+    expected_prob = "Expected Probability",
+    Rank = "Rank",
+    relative_to_mean = "Relative to Average"
+  ) %>%
+  tab_header(
+    title = "Expected Optimal GIDP Contact Probabilities by Pitch Profile",
+    subtitle = "RHP vs. RHH Matchup"
+  ) %>%
+  fmt_missing(everything(), missing_text = "—") %>%
+  data_color(
+    columns = c(Rank),
+    colors = scales::col_numeric(
+      palette = c("#b2182b", "#ef8a62", "#f7f7f7", "#67a9cf", "#2166ac"),
+      domain = range(
+        pitch_types_ranked_RR$Rank
+      )
+    )
+  ) %>%
+  data_color(
+    columns = c(relative_to_mean),
+    colors = scales::col_numeric(
+      palette = rev(c("#b2182b", "#ef8a62", "#f7f7f7", "#67a9cf", "#2166ac")),
+      domain = range(
+        pitch_types_ranked_RR$relative_to_mean
+      )
+    )
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(columns = c(Rank, expected_prob, relative_to_mean))
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(weight = "bold", size = px(18))
+    ),
+    locations = cells_title(groups = "title")
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(weight = "bold", size = px(14))
+    ),
+    locations = cells_title(groups = "subtitle")
+  ) %>%
+  tab_options(
+    table.font.size = 13,
+    data_row.padding = px(5)
+  )
+
+gt_RR
+```
+
+
+``` {r, cache=TRUE}
+library(gratia)
+smooth_eff_RR <- gratia::smooth_estimates(GAM_RR)
+
+feature_rank_RR <- smooth_eff_RR %>%
+  group_by(.smooth) %>%
+  summarise(
+    effect_range = max(.estimate) - min(.estimate),
+    effect_sd = sd(.estimate)
+  ) %>%
+  arrange(desc(effect_range))
+
+feature_rank_RR
+
+smooth_eff_RL <- gratia::smooth_estimates(GAM_RL)
+
+feature_rank_RL <- smooth_eff_RL %>%
+  group_by(.smooth) %>%
+  summarise(
+    effect_range = max(.estimate) - min(.estimate),
+    effect_sd = sd(.estimate)
+  ) %>%
+  arrange(desc(effect_range))
+
+feature_rank_RL
+
+smooth_eff_LR <- gratia::smooth_estimates(GAM_LR)
+
+feature_rank_LR <- smooth_eff_LR %>%
+  group_by(.smooth) %>%
+  summarise(
+    effect_range = max(.estimate) - min(.estimate),
+    effect_sd = sd(.estimate)
+  ) %>%
+  arrange(desc(effect_range))
+
+feature_rank_LR
+
+smooth_eff_LL <- gratia::smooth_estimates(GAM_LL)
+
+feature_rank_LL <- smooth_eff_LL %>%
+  group_by(.smooth) %>%
+  summarise(
+    effect_range = max(.estimate) - min(.estimate),
+    effect_sd = sd(.estimate)
+  ) %>%
+  arrange(desc(effect_range))
+
+feature_rank_LL
+```
+
+``` {r} 
+plot(GAM_RR,
+     scale = 0,
+     ylim = c(-3, 3),
+     rug = TRUE,
+     col = "navy",
+     ylab = "Partial Effect on GIDP Probability",
+     xlab = c("Spin rate", "Velocity", "Induced Vertical Break (IVB)" ,"Horizontal Break (HB)",
+              "TI", "Horizontal Plate Location", "Vertical Plate Location",
+              "TI", "InitPosX", "InitPosZ")
+)
+
+plot(GAM_RR, select = 1, xlab = "Spin Rate",
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_RR, select = 2, xlab = "Velocity",
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_RR, select = 3, xlab = "Induced Vertical Break (IVB)",
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_RR, select = 4, xlab = "Horizontal Break (HB)",
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_RR, select = 5, xlab = "TI",
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_RR, select = 6, xlab = "Horizontal Plate Location",
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_RR, select = 7, xlab = "Vertical Plate Location",
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_RR, select = 8, xlab = "TI",
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_RR, select = 9, xlab = "InitPosX",
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_RR, select = 10, xlab = "InitPosZ",
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_RL)
+plot(GAM_LR)
+plot(GAM_LL)
+```
