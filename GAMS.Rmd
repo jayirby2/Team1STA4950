@@ -817,31 +817,26 @@ feature_rank_LL <- smooth_eff_LL %>%
 feature_rank_LL
 ```
 
-``` {r} 
-plot(GAM_RR,
-     scale = 0,
-     ylim = c(-3, 3),
-     rug = TRUE,
-     col = "navy",
-     ylab = "Partial Effect on GIDP Probability",
-     xlab = c("Spin rate", "Velocity", "Induced Vertical Break (IVB)" ,"Horizontal Break (HB)",
-              "TI", "Horizontal Plate Location", "Vertical Plate Location",
-              "TI", "InitPosX", "InitPosZ")
-)
 
+``` {r} 
+# RR
 plot(GAM_RR, select = 1, xlab = "Spin Rate",
+     xlim = c(0,3200),
      scale = 0, ylim = c(-3,3), col = "navy",
      ylab = "Partial Effect on GIDP Probability")
 
 plot(GAM_RR, select = 2, xlab = "Velocity",
+     xlim = c(70,103),
      scale = 0, ylim = c(-3,3), col = "navy",
      ylab = "Partial Effect on GIDP Probability")
 
 plot(GAM_RR, select = 3, xlab = "Induced Vertical Break (IVB)",
+     xlim = c(-20,25),
      scale = 0, ylim = c(-3,3), col = "navy",
      ylab = "Partial Effect on GIDP Probability")
 
 plot(GAM_RR, select = 4, xlab = "Horizontal Break (HB)",
+     xlim = c(-25,25),
      scale = 0, ylim = c(-3,3), col = "navy",
      ylab = "Partial Effect on GIDP Probability")
 
@@ -850,10 +845,12 @@ plot(GAM_RR, select = 5, xlab = "TI",
      ylab = "Partial Effect on GIDP Probability")
 
 plot(GAM_RR, select = 6, xlab = "Horizontal Plate Location",
+     xlim = c(-2,2),
      scale = 0, ylim = c(-3,3), col = "navy",
      ylab = "Partial Effect on GIDP Probability")
 
 plot(GAM_RR, select = 7, xlab = "Vertical Plate Location",
+     xlim = c(0,6),
      scale = 0, ylim = c(-3,3), col = "navy",
      ylab = "Partial Effect on GIDP Probability")
 
@@ -861,15 +858,160 @@ plot(GAM_RR, select = 8, xlab = "TI",
      scale = 0, ylim = c(-3,3), col = "navy",
      ylab = "Partial Effect on GIDP Probability")
 
-plot(GAM_RR, select = 9, xlab = "InitPosX",
+plot(GAM_RR, select = 9, xlab = "Release Point Side",
+     xlim = c(-4,0.5),
      scale = 0, ylim = c(-3,3), col = "navy",
      ylab = "Partial Effect on GIDP Probability")
 
-plot(GAM_RR, select = 10, xlab = "InitPosZ",
+plot(GAM_RR, select = 10, xlab = "Release Point Height",
+     xlim = c(3,7),
      scale = 0, ylim = c(-3,3), col = "navy",
      ylab = "Partial Effect on GIDP Probability")
 
-plot(GAM_RL)
-plot(GAM_LR)
-plot(GAM_LL)
+# RL
+plot(GAM_RL, select = 1, xlab = "Spin Rate",
+     xlim = c(0,3200),
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_RL, select = 2, xlab = "Velocity",
+     xlim = c(70,103),
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_RL, select = 3, xlab = "Induced Vertical Break (IVB)",
+     xlim = c(-20,25),
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_RL, select = 4, xlab = "Horizontal Break (HB)",
+     xlim = c(-25,25),
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_RL, select = 5, xlab = "TI",
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_RL, select = 6, xlab = "Horizontal Plate Location",
+     xlim = c(-2,2),
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_RL, select = 7, xlab = "Vertical Plate Location",
+     xlim = c(0,6),
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_RL, select = 8, xlab = "TI",
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_RL, select = 9, xlab = "Release Point Side",
+     xlim = c(-4,0.5),
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_RL, select = 10, xlab = "Release Point Height",
+     xlim = c(3,7),
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+# LR
+plot(GAM_LR, select = 1, xlab = "Spin Rate",
+     xlim = c(0,3200),
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_LR, select = 2, xlab = "Velocity",
+     xlim = c(70,103),
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_LR, select = 3, xlab = "Induced Vertical Break (IVB)",
+     xlim = c(-20,25),
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_LR, select = 4, xlab = "Horizontal Break (HB)",
+     xlim = c(-25,25),
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_LR, select = 5, xlab = "TI",
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_LR, select = 6, xlab = "Horizontal Plate Location",
+     xlim = c(-2,2),
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_LR, select = 7, xlab = "Vertical Plate Location",
+     xlim = c(0,6),
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_LR, select = 8, xlab = "TI",
+    scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_LR, select = 9, xlab = "Release Point Side",
+     xlim = c(-0.5,4),
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_LR, select = 10, xlab = "Release Point Height",
+     xlim = c(3,7),
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+# LL
+plot(GAM_LL, select = 1, xlab = "Spin Rate",
+     xlim = c(0,3200),
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_LL, select = 2, xlab = "Velocity",
+     xlim = c(70,103),
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_LL, select = 3, xlab = "Induced Vertical Break (IVB)",
+     xlim = c(-20,25),
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_LL, select = 4, xlab = "Horizontal Break (HB)",
+     xlim = c(-25,25),
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_LL, select = 5, xlab = "TI",
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_LL, select = 6, xlab = "Horizontal Plate Location",
+     xlim = c(-2,2),
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_LL, select = 7, xlab = "Vertical Plate Location",
+     xlim = c(0,6),
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_LL, select = 8, xlab = "TI",
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_LL, select = 9, xlab = "Release Point Side",
+     xlim = c(-0.5,4),
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
+
+plot(GAM_LL, select = 10, xlab = "Release Point Height",
+     xlim = c(3,7),
+     scale = 0, ylim = c(-3,3), col = "navy",
+     ylab = "Partial Effect on GIDP Probability")
 ```
